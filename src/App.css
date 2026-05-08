@@ -627,6 +627,97 @@ textarea:focus { border-color: var(--primary); }
 }
 .feedback-card h4 { font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
 .feedback-card p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.7; }
+
+/* ─── AI SUMMARY BLOCK ─── */
+.ai-summary-block {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
+  margin-top: 1rem;
+}
+.ai-summary-header {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.ai-summary-icon { color: var(--primary); font-size: 0.9rem; }
+.ai-summary-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.ai-summary-col {
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+}
+.ai-summary-col--good {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+.ai-summary-col--improve {
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+}
+.ai-col-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.6rem;
+}
+.ai-summary-col--good .ai-col-label { color: #16a34a; }
+.ai-summary-col--improve .ai-col-label { color: #ea580c; }
+.ai-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.ai-bullet-list li {
+  font-size: 0.87rem;
+  color: var(--text);
+  line-height: 1.5;
+  padding-left: 1.1rem;
+  position: relative;
+}
+.ai-summary-col--good .ai-bullet-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #16a34a;
+  font-weight: 700;
+}
+.ai-summary-col--improve .ai-bullet-list li::before {
+  content: '↑';
+  position: absolute;
+  left: 0;
+  color: #ea580c;
+  font-weight: 700;
+}
+.ai-summary-tip {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.87rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.ai-tip-icon { flex-shrink: 0; margin-top: 0.05rem; }
+@media (max-width: 560px) {
+  .ai-summary-cols { grid-template-columns: 1fr; }
+}
 .skill-bars { margin-top: 1rem; }
 .skill-bar-row { margin-bottom: 0.6rem; }
 .skill-bar-label { display: flex; justify-content: space-between; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.25rem; }

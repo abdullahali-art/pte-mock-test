@@ -99,30 +99,37 @@ export default function ResultsScreen({ answers, questions, apiKey, testType, on
         {feedback && (
           <>
             <div className="divider" />
-            <div className="feedback-card">
-              <h4>✅ Strengths</h4>
-              <p>{feedback.strengths}</p>
-            </div>
-            <div className="feedback-card">
-              <h4>📈 Areas to Improve</h4>
-              <p>{feedback.improvements}</p>
-            </div>
-            <div className="feedback-card">
-              <h4>💡 Study Tip</h4>
-              <p>{feedback.studyTip}</p>
-            </div>
-            <div className="feedback-card">
-              <h4>🎯 Keep Going</h4>
-              <p>{feedback.encouragement}</p>
+            <div className="ai-summary-block">
+              <div className="ai-summary-header">
+                <span className="ai-summary-icon">✦</span>
+                AI Summary
+              </div>
+              <div className="ai-summary-cols">
+                <div className="ai-summary-col ai-summary-col--good">
+                  <div className="ai-col-label">What's working</div>
+                  <ul className="ai-bullet-list">
+                    {(feedback.spotOn || []).map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="ai-summary-col ai-summary-col--improve">
+                  <div className="ai-col-label">What to work on</div>
+                  <ul className="ai-bullet-list">
+                    {(feedback.workOn || []).map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              {feedback.tip && (
+                <div className="ai-summary-tip">
+                  <span className="ai-tip-icon">💡</span>
+                  {feedback.tip}
+                </div>
+              )}
             </div>
           </>
-        )}
-
-        {!apiKey && (
-          <div className="feedback-card">
-            <h4>ℹ️ Add API Key for AI Feedback</h4>
-            <p>Add a Gemini API key to receive personalised speaking, writing, and overall feedback on your next test.</p>
-          </div>
         )}
       </div>
 

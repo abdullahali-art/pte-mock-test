@@ -122,7 +122,7 @@ Respond ONLY in JSON:
 
 // ─── Generate overall test feedback ───────────────────────────────────────────
 export async function generateOverallFeedback(apiKey, { scores, testType }) {
-  const p = `You are a PTE Academic coach. A student just completed a ${testType} PTE mock test.
+  const p = `You are a PTE Academic coach. A student just completed a ${testType === 'full' ? 'Full' : 'Short'} PTE mock test.
 
 Their section scores (0–90 scale):
 - Speaking: ${scores.speaking}
@@ -131,12 +131,11 @@ Their section scores (0–90 scale):
 - Listening: ${scores.listening}
 - Overall: ${scores.overall}
 
-Give personalised feedback in this JSON format:
+Give concise, specific feedback as bullet points. Respond ONLY in this exact JSON format:
 {
-  "strengths": "One sentence about what they did well.",
-  "improvements": "One sentence about the most important area to improve.",
-  "studyTip": "One specific, actionable study tip for their weakest area.",
-  "encouragement": "One motivating sentence."
+  "spotOn": ["short bullet about something they did well", "another strength (2–3 bullets total)"],
+  "workOn": ["specific skill or question type to improve", "another area needing work (2–3 bullets total)"],
+  "tip": "One concrete, actionable study tip targeting their weakest section."
 }`
 
   const raw = await callGemini(apiKey, p)
@@ -145,10 +144,9 @@ Give personalised feedback in this JSON format:
     return JSON.parse(json)
   } catch {
     return {
-      strengths: 'You completed the test — a significant achievement.',
-      improvements: 'Focus on the section with the lowest score.',
-      studyTip: 'Practice daily with authentic PTE materials.',
-      encouragement: 'Consistent practice leads to measurable improvement.',
+      spotOn: ['Test completed successfully', 'Showed engagement across all sections'],
+      workOn: ['Focus on the lowest-scoring section', 'Review question types where time ran out'],
+      tip: 'Practice 20 minutes daily on your weakest section using authentic PTE materials.',
     }
   }
 }
