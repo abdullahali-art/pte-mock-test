@@ -1,4 +1,4 @@
-export default function HomeScreen({ onStart, savedApiKey }) {
+export default function HomeScreen({ onStart, onDevResults }) {
   return (
     <div className="home">
       <div className="home-logo">PTE <span>Mock</span></div>
@@ -17,11 +17,11 @@ export default function HomeScreen({ onStart, savedApiKey }) {
           <span className="card-badge">~30 mins · ~31 questions</span>
         </div>
       </div>
-      <p className="home-note">Questions are randomly selected without repetition across up to 10 tests.</p>
-      {savedApiKey
-        ? <p className="home-api-status">✓ Gemini API key saved — AI assessment enabled</p>
-        : <p className="home-api-status">No API key yet — you'll be prompted before the test starts</p>
-      }
+      {import.meta.env.DEV && (
+        <button className="dev-skip-btn" onClick={onDevResults}>
+          ⚙ Skip to Results (dev only)
+        </button>
+      )}
     </div>
   )
 }

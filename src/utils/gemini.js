@@ -120,6 +120,12 @@ Respond ONLY in JSON:
   }
 }
 
+const FEEDBACK_FALLBACK = {
+  spotOn: ['Test completed successfully', 'Showed engagement across all sections'],
+  workOn: ['Focus on the lowest-scoring section', 'Review question types where time ran out'],
+  tip: 'Practice 20 minutes daily on your weakest section using authentic PTE materials.',
+}
+
 // ─── Generate overall test feedback ───────────────────────────────────────────
 export async function generateOverallFeedback(apiKey, { scores, testType }) {
   const p = `You are a PTE Academic coach. A student just completed a ${testType === 'full' ? 'Full' : 'Short'} PTE mock test.
@@ -138,15 +144,13 @@ Give concise, specific feedback as bullet points. Respond ONLY in this exact JSO
   "tip": "One concrete, actionable study tip targeting their weakest section."
 }`
 
-  const raw = await callGemini(apiKey, p)
   try {
+    const raw = await callGemini(apiKey, p)
     const json = raw.match(/\{[\s\S]*\}/)?.[0]
-    return JSON.parse(json)
+    const parsed = JSON.parse(json)
+    if (!parsed.spotOn || !parsed.workOn) return FEEDBACK_FALLBACK
+    return parsed
   } catch {
-    return {
-      spotOn: ['Test completed successfully', 'Showed engagement across all sections'],
-      workOn: ['Focus on the lowest-scoring section', 'Review question types where time ran out'],
-      tip: 'Practice 20 minutes daily on your weakest section using authentic PTE materials.',
-    }
+    return FEEDBACK_FALLBACK
   }
 }

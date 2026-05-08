@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { scoreAllObjective } from '../utils/scoring'
 import { generateOverallFeedback } from '../utils/gemini'
 
+const STATIC_FALLBACK = {
+  spotOn: ['Test completed successfully', 'Showed engagement across all sections'],
+  workOn: ['Focus on the lowest-scoring section', 'Review question types where time ran out'],
+  tip: 'Practice 20 minutes daily on your weakest section using authentic PTE materials.',
+}
+
 export default function ResultsScreen({ answers, questions, apiKey, testType, onRetake }) {
   const [scores, setScores] = useState(null)
   const [feedback, setFeedback] = useState(null)
@@ -36,9 +42,9 @@ export default function ResultsScreen({ answers, questions, apiKey, testType, on
     if (apiKey) {
       generateOverallFeedback(apiKey, { scores: computed, testType })
         .then(setFeedback)
-        .catch(() => setFeedback(null))
         .finally(() => setLoading(false))
     } else {
+      setFeedback(STATIC_FALLBACK)
       setLoading(false)
     }
   }, []) // eslint-disable-line

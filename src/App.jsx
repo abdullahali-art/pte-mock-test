@@ -53,10 +53,19 @@ export default function App() {
     setAnswers({})
   }, [])
 
+  const handleDevResults = useCallback(() => {
+    const qs = buildShortTest()
+    setQuestions(qs)
+    setTestType('short')
+    setAnswers({})
+    setResults(null)
+    setScreen('results')
+  }, [])
+
   return (
     <div className="app">
       {screen === 'home' && (
-        <HomeScreen onStart={handleStart} savedApiKey={apiKey} />
+        <HomeScreen onStart={handleStart} onDevResults={handleDevResults} />
       )}
       {screen === 'setup' && (
         <ApiKeySetup onSave={handleApiKeySaved} onBack={() => setScreen('home')} />
