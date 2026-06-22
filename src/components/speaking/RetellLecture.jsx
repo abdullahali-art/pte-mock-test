@@ -1,21 +1,33 @@
 import { useState, useEffect, useRef } from 'react'
-import { speak, stopSpeaking } from '../../utils/speech'
-import { startRecording, stopRecording } from '../../utils/speech'
+import { speak, stopSpeaking, startRecording, stopRecording } from '../../utils/speech'
 import { ItemTimerBar } from '../Timer'
+import Waveform from './Waveform'
 
-const PHASES = { LISTENING: 'listening', PREP: 'prep', RECORDING: 'recording', DONE: 'done' }
+const PHASES = { READY: 'ready', LISTENING: 'listening', PREP: 'prep', RECORDING: 'recording', DONE: 'done' }
+const READY_SECONDS = 5
 
 export default function RetellLecture({ question, onAnswer, onNext }) {
-  const [phase, setPhase] = useState(PHASES.LISTENING)
+  const [phase, setPhase] = useState(PHASES.READY)
+  const [readyCountdown, setReadyCountdown] = useState(READY_SECONDS)
   const [transcript, setTranscript] = useState('')
   const [interim, setInterim] = useState('')
   const [notes, setNotes] = useState('')
+  const [level, setLevel] = useState(0)
+  const [micError, setMicError] = useState('')
   const finalRef = useRef('')
 
   useEffect(() => {
+    if (phase !== PHASES.READY) return
+    if (readyCountdown <= 0) { setPhase(PHASES.LISTENING); return }
+    const t = setTimeout(() => setReadyCountdown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [phase, readyCountdown])
+
+  useEffect(() => {
+    if (phase !== PHASES.LISTENING) return
     speak(question.audio, { rate: 0.88, onEnd: () => setPhase(PHASES.PREP) })
     return () => { stopSpeaking(); stopRecording() }
-  }, []) // eslint-disable-line
+  }, [phase]) // eslint-disable-line
 
   useEffect(() => {
     if (phase !== PHASES.RECORDING) return
@@ -23,8 +35,14 @@ export default function RetellLecture({ question, onAnswer, onNext }) {
     startRecording({
       onInterim: t => setInterim(t),
       onFinal: t => { finalRef.current = t; setTranscript(t) },
-      onEnd: t => { onAnswer(question.id, t || finalRef.current); setPhase(PHASES.DONE) },
-      onError: () => {},
+      onLevel: setLevel,
+      onEnd: ({ transcript: t }) => {
+        const val = (t || finalRef.current || '').trim()
+        setTranscript(val)
+        onAnswer(question.id, val)
+        setPhase(PHASES.DONE)
+      },
+      onError: e => setMicError(e),
     })
     return () => stopRecording()
   }, [phase]) // eslint-disable-line
@@ -43,6 +61,13 @@ export default function RetellLecture({ question, onAnswer, onNext }) {
       </div>
 
       <div className="q-card" style={{ textAlign: 'center', padding: '2rem' }}>
+        {phase === PHASES.READY && (
+          <>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⏳</div>
+            <p style={{ fontWeight: 600 }}>{question.title}</p>
+            <p style={{ color: 'var(--text-muted)' }}>Lecture begins in {readyCountdown} second{readyCountdown === 1 ? '' : 's'} — read the instructions now.</p>
+          </>
+        )}
         {phase === PHASES.LISTENING && (
           <>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎧</div>
@@ -65,7 +90,7 @@ export default function RetellLecture({ question, onAnswer, onNext }) {
         {phase === PHASES.DONE && <p style={{ color: 'var(--success)' }}>Response recorded</p>}
       </div>
 
-      {(phase === PHASES.LISTENING || phase === PHASES.PREP) && (
+      {(phase === PHASES.READY || phase === PHASES.LISTENING || phase === PHASES.PREP) && (
         <div>
           <label style={{ fontSize: '0.85rem', fontWeight: 500, display: 'block', marginBottom: '0.4rem' }}>Notes (optional)</label>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Jot down key points…" rows={4} />
@@ -81,11 +106,17 @@ export default function RetellLecture({ question, onAnswer, onNext }) {
 
       {phase === PHASES.RECORDING && (
         <>
-          <div className="recording-banner">
-            <div className="recording-dot" />
-            <span>Recording</span>
-            <div className="waveform">{[...Array(5)].map((_, i) => <div key={i} className="waveform-bar" />)}</div>
-          </div>
+          {micError ? (
+            <div className="recording-banner" style={{ background: '#fee2e2', color: '#b91c1c' }}>
+              <span>⚠️</span><span>{micError}</span>
+            </div>
+          ) : (
+            <div className="recording-banner">
+              <div className="recording-dot" />
+              <span>Recording</span>
+              <Waveform level={level} />
+            </div>
+          )}
           <ItemTimerBar seconds={question.speakTime} running={true} onExpire={finish} />
           <div className={`transcript-box ${interim ? 'has-text' : ''}`}>{interim || 'Listening…'}</div>
           <button className="btn btn-secondary" onClick={finish}>Stop Recording</button>

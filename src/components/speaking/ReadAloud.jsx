@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { startRecording, stopRecording } from '../../utils/speech'
 import { ItemTimerBar } from '../Timer'
+import Waveform from './Waveform'
 
 const PHASES = { PREP: 'prep', RECORDING: 'recording', DONE: 'done' }
 
@@ -8,23 +9,27 @@ export default function ReadAloud({ question, onAnswer, onNext }) {
   const [phase, setPhase] = useState(PHASES.PREP)
   const [transcript, setTranscript] = useState('')
   const [interim, setInterim] = useState('')
-
+  const [level, setLevel] = useState(0)
+  const [micError, setMicError] = useState('')
   const finalRef = useRef('')
 
   useEffect(() => {
-    if (phase === PHASES.RECORDING) {
-      finalRef.current = ''
-      startRecording({
-        onInterim: t => setInterim(t),
-        onFinal: t => { finalRef.current = t; setTranscript(t) },
-        onEnd: t => { const val = t || finalRef.current; setTranscript(val); onAnswer(question.id, val) },
-        onError: () => {},
-      })
-    }
-    return () => { if (phase === PHASES.RECORDING) stopRecording() }
+    if (phase !== PHASES.RECORDING) return
+    finalRef.current = ''
+    startRecording({
+      onInterim: t => setInterim(t),
+      onFinal: t => { finalRef.current = t; setTranscript(t) },
+      onLevel: setLevel,
+      onEnd: ({ transcript: t }) => {
+        const val = (t || finalRef.current || '').trim()
+        setTranscript(val)
+        onAnswer(question.id, val)
+      },
+      onError: e => setMicError(e),
+    })
+    return () => { stopRecording() }
   }, [phase]) // eslint-disable-line
 
-  function startPrep() {}
   function startRecordingPhase() { setPhase(PHASES.RECORDING) }
   function finish() {
     stopRecording()
@@ -56,13 +61,18 @@ export default function ReadAloud({ question, onAnswer, onNext }) {
 
       {phase === PHASES.RECORDING && (
         <>
-          <div className="recording-banner">
-            <div className="recording-dot" />
-            <span>Recording — read the passage aloud now.</span>
-            <div className="waveform">
-              {[...Array(5)].map((_, i) => <div key={i} className="waveform-bar" style={{ height: `${8 + Math.random()*20}px` }} />)}
+          {micError ? (
+            <div className="recording-banner" style={{ background: '#fee2e2', color: '#b91c1c' }}>
+              <span>⚠️</span>
+              <span>{micError}</span>
             </div>
-          </div>
+          ) : (
+            <div className="recording-banner">
+              <div className="recording-dot" />
+              <span>Recording — read the passage aloud now.</span>
+              <Waveform level={level} />
+            </div>
+          )}
           <ItemTimerBar seconds={question.speakTime} running={true} onExpire={finish} />
           <div className={`transcript-box ${interim ? 'has-text' : ''}`}>
             {interim || 'Listening to you speak…'}

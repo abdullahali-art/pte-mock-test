@@ -17,7 +17,7 @@ export default function WriteFromDictation({ question, onAnswer, onNext }) {
         <p className="q-instruction">Listen to the sentence and type it exactly as you hear it. Spelling and punctuation matter.</p>
       </div>
 
-      <AudioPlayer text={question.audio} onEnd={() => setAudioEnded(true)} label="Plays once only — type carefully" />
+      <AudioPlayer text={question.audio} onEnd={() => setAudioEnded(true)} prepTime={5} label="Plays once only — type carefully" />
 
       {audioEnded && (
         <div>

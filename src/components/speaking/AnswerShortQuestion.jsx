@@ -1,20 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
-import { speak, stopSpeaking } from '../../utils/speech'
-import { startRecording, stopRecording } from '../../utils/speech'
+import { speak, stopSpeaking, startRecording, stopRecording } from '../../utils/speech'
 import { ItemTimerBar } from '../Timer'
+import Waveform from './Waveform'
 
-const PHASES = { LISTENING: 'listening', RECORDING: 'recording', DONE: 'done' }
+const PHASES = { PREP: 'prep', LISTENING: 'listening', RECORDING: 'recording', DONE: 'done' }
+const PREP_SECONDS = 3
 
 export default function AnswerShortQuestion({ question, onAnswer, onNext }) {
-  const [phase, setPhase] = useState(PHASES.LISTENING)
+  const [phase, setPhase] = useState(PHASES.PREP)
+  const [countdown, setCountdown] = useState(PREP_SECONDS)
   const [transcript, setTranscript] = useState('')
   const [interim, setInterim] = useState('')
+  const [level, setLevel] = useState(0)
+  const [micError, setMicError] = useState('')
   const finalRef = useRef('')
 
   useEffect(() => {
+    if (phase !== PHASES.PREP) return
+    if (countdown <= 0) { setPhase(PHASES.LISTENING); return }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [phase, countdown])
+
+  useEffect(() => {
+    if (phase !== PHASES.LISTENING) return
     speak(question.audio, { rate: 0.88, onEnd: () => setPhase(PHASES.RECORDING) })
     return () => { stopSpeaking(); stopRecording() }
-  }, []) // eslint-disable-line
+  }, [phase]) // eslint-disable-line
 
   useEffect(() => {
     if (phase !== PHASES.RECORDING) return
@@ -22,8 +34,14 @@ export default function AnswerShortQuestion({ question, onAnswer, onNext }) {
     startRecording({
       onInterim: t => setInterim(t),
       onFinal: t => { finalRef.current = t; setTranscript(t) },
-      onEnd: t => { onAnswer(question.id, t || finalRef.current); setPhase(PHASES.DONE) },
-      onError: () => {},
+      onLevel: setLevel,
+      onEnd: ({ transcript: t }) => {
+        const val = (t || finalRef.current || '').trim()
+        setTranscript(val)
+        onAnswer(question.id, val)
+        setPhase(PHASES.DONE)
+      },
+      onError: e => setMicError(e),
     })
     return () => stopRecording()
   }, [phase]) // eslint-disable-line
@@ -42,6 +60,12 @@ export default function AnswerShortQuestion({ question, onAnswer, onNext }) {
       </div>
 
       <div className="q-card" style={{ textAlign: 'center', padding: '2rem' }}>
+        {phase === PHASES.PREP && (
+          <>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⏳</div>
+            <p style={{ color: 'var(--text-muted)' }}>Question begins in {countdown} second{countdown === 1 ? '' : 's'}…</p>
+          </>
+        )}
         {phase === PHASES.LISTENING && (
           <>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔊</div>
@@ -63,11 +87,17 @@ export default function AnswerShortQuestion({ question, onAnswer, onNext }) {
 
       {phase === PHASES.RECORDING && (
         <>
-          <div className="recording-banner">
-            <div className="recording-dot" />
-            <span>Recording your answer</span>
-            <div className="waveform">{[...Array(5)].map((_, i) => <div key={i} className="waveform-bar" />)}</div>
-          </div>
+          {micError ? (
+            <div className="recording-banner" style={{ background: '#fee2e2', color: '#b91c1c' }}>
+              <span>⚠️</span><span>{micError}</span>
+            </div>
+          ) : (
+            <div className="recording-banner">
+              <div className="recording-dot" />
+              <span>Recording your answer</span>
+              <Waveform level={level} />
+            </div>
+          )}
           <ItemTimerBar seconds={question.speakTime} running={true} onExpire={finish} />
           <div className={`transcript-box ${interim ? 'has-text' : ''}`}>{interim || 'Listening…'}</div>
           <button className="btn btn-secondary" onClick={finish}>Done</button>

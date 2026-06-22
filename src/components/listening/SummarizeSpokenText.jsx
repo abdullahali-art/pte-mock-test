@@ -24,7 +24,7 @@ export default function SummarizeSpokenText({ question, onAnswer, onNext }) {
         </div>
       </div>
 
-      <AudioPlayer text={question.audio} onEnd={() => setAudioEnded(true)} label="Plays once only" />
+      <AudioPlayer text={question.audio} onEnd={() => setAudioEnded(true)} prepTime={10} label="Plays once only" />
 
       <div className="writing-rules">
         📝 Write 50–70 words capturing the main points of the lecture.

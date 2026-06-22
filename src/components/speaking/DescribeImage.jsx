@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { startRecording, stopRecording } from '../../utils/speech'
 import { ItemTimerBar } from '../Timer'
+import Waveform from './Waveform'
 
 const PHASES = { PREP: 'prep', RECORDING: 'recording', DONE: 'done' }
 
@@ -109,6 +110,8 @@ export default function DescribeImage({ question, onAnswer, onNext }) {
   const [phase, setPhase] = useState(PHASES.PREP)
   const [transcript, setTranscript] = useState('')
   const [interim, setInterim] = useState('')
+  const [level, setLevel] = useState(0)
+  const [micError, setMicError] = useState('')
   const finalRef = useRef('')
 
   function startRecordingPhase() { setPhase(PHASES.RECORDING) }
@@ -119,8 +122,14 @@ export default function DescribeImage({ question, onAnswer, onNext }) {
     startRecording({
       onInterim: t => setInterim(t),
       onFinal: t => { finalRef.current = t; setTranscript(t) },
-      onEnd: t => { onAnswer(question.id, t || finalRef.current); setPhase(PHASES.DONE) },
-      onError: () => {},
+      onLevel: setLevel,
+      onEnd: ({ transcript: t }) => {
+        const val = (t || finalRef.current || '').trim()
+        setTranscript(val)
+        onAnswer(question.id, val)
+        setPhase(PHASES.DONE)
+      },
+      onError: e => setMicError(e),
     })
     return () => stopRecording()
   }, [phase]) // eslint-disable-line
@@ -150,11 +159,17 @@ export default function DescribeImage({ question, onAnswer, onNext }) {
 
       {phase === PHASES.RECORDING && (
         <>
-          <div className="recording-banner">
-            <div className="recording-dot" />
-            <span>Recording — describe the image now.</span>
-            <div className="waveform">{[...Array(5)].map((_, i) => <div key={i} className="waveform-bar" />)}</div>
-          </div>
+          {micError ? (
+            <div className="recording-banner" style={{ background: '#fee2e2', color: '#b91c1c' }}>
+              <span>⚠️</span><span>{micError}</span>
+            </div>
+          ) : (
+            <div className="recording-banner">
+              <div className="recording-dot" />
+              <span>Recording — describe the image now.</span>
+              <Waveform level={level} />
+            </div>
+          )}
           <ItemTimerBar seconds={question.speakTime} running={true} onExpire={finish} />
           <div className={`transcript-box ${interim ? 'has-text' : ''}`}>{interim || 'Listening…'}</div>
           <button className="btn btn-secondary" onClick={finish}>Stop Recording</button>

@@ -8,7 +8,6 @@ export function speak(text, { rate = 0.92, pitch = 1, onEnd } = {}) {
     utter.rate = rate
     utter.pitch = pitch
     utter.lang = 'en-AU'
-    // Prefer an English voice
     const voices = speechSynthesis.getVoices()
     const preferred = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('google'))
       || voices.find(v => v.lang.startsWith('en'))
@@ -31,64 +30,170 @@ export function isSpeaking() {
   return speechSynthesis.speaking
 }
 
-// ─── STT — records via Web Speech API ─────────────────────────────────────────
-let recognition = null
+// ─── Recording stack ──────────────────────────────────────────────────────────
+// Combines:
+//   1. MediaRecorder — captures actual audio (Blob) so volume/duration can be
+//      verified even when STT misses words. This is what the real PTE platform
+//      grades you on.
+//   2. Web Speech API STT — produces a live transcript for AI scoring. STT can
+//      drop out on background noise or accents, so we auto-restart it for the
+//      lifetime of the recording session.
+//
+// One session, one stop() call, one combined result {transcript, audioBlob,
+// audioUrl, durationMs, maxVolume}. Components do not need to manage either
+// API directly.
 
-export function startRecording({ onInterim, onFinal, onEnd, onError }) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-  if (!SpeechRecognition) {
-    onError?.('Speech recognition not supported in this browser. Please use Chrome.')
-    return null
-  }
-  stopRecording()
-  recognition = new SpeechRecognition()
-  recognition.continuous = true
-  recognition.interimResults = true
-  recognition.lang = 'en-AU'
-  recognition.maxAlternatives = 1
+let session = null
 
-  let finalTranscript = ''
+export async function startRecording({ onInterim, onFinal, onEnd, onError, onLevel } = {}) {
+  await stopRecording() // ensure clean slate
 
-  recognition.onresult = (e) => {
-    let interim = ''
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript
-      if (e.results[i].isFinal) finalTranscript += t + ' '
-      else interim += t
-    }
-    onInterim?.(finalTranscript + interim)
-    if (finalTranscript) onFinal?.(finalTranscript.trim())
-  }
-
-  recognition.onend = () => {
-    recognition = null
-    onEnd?.(finalTranscript.trim())
-  }
-
-  recognition.onerror = (e) => {
-    if (e.error === 'no-speech') return
-    onError?.(e.error)
-  }
-
+  // ── 1. Get mic stream
+  let stream
   try {
-    recognition.start()
-  } catch {
-    onError?.('Could not start microphone.')
-    recognition = null
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    })
+  } catch (e) {
+    onError?.('Microphone access denied. Please allow microphone access and try again.')
     return null
   }
-  return recognition
+
+  // ── 2. Volume meter (so the UI can show real input level, not random bars)
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  const source = audioCtx.createMediaStreamSource(stream)
+  const analyser = audioCtx.createAnalyser()
+  analyser.fftSize = 512
+  source.connect(analyser)
+  const levelBuf = new Uint8Array(analyser.frequencyBinCount)
+  let maxVolume = 0
+  let levelRaf = null
+  const tick = () => {
+    analyser.getByteTimeDomainData(levelBuf)
+    let peak = 0
+    for (let i = 0; i < levelBuf.length; i++) {
+      const v = Math.abs(levelBuf[i] - 128) / 128
+      if (v > peak) peak = v
+    }
+    if (peak > maxVolume) maxVolume = peak
+    onLevel?.(peak)
+    levelRaf = requestAnimationFrame(tick)
+  }
+  tick()
+
+  // ── 3. MediaRecorder for actual audio capture
+  const chunks = []
+  let mediaRecorder
+  try {
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+    mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data) }
+    mediaRecorder.start(250)
+  } catch (e) {
+    onError?.('Could not start audio recorder.')
+  }
+
+  // ── 4. STT with auto-restart
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+  let finalTranscript = ''
+  let recognition = null
+  let sttStopped = false
+
+  function startSTT() {
+    if (!SpeechRecognition || sttStopped) return
+    recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-AU'
+    recognition.maxAlternatives = 1
+
+    recognition.onresult = (e) => {
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) finalTranscript += t + ' '
+        else interim += t
+      }
+      onInterim?.(finalTranscript + interim)
+      if (finalTranscript) onFinal?.(finalTranscript.trim())
+    }
+
+    // Auto-restart on transient drop-outs so the candidate doesn't lose words.
+    recognition.onend = () => {
+      if (!sttStopped) {
+        try { recognition.start() } catch {}
+      }
+    }
+    recognition.onerror = (e) => {
+      // Don't bubble 'no-speech' / 'aborted' as user-facing errors — these are
+      // expected during pauses. Let onend handler restart the recognizer.
+      if (e.error && !['no-speech', 'aborted', 'audio-capture'].includes(e.error)) {
+        onError?.(e.error)
+      }
+    }
+
+    try { recognition.start() } catch {}
+  }
+
+  if (!SpeechRecognition) {
+    // STT unsupported — audio capture still works for scoring.
+    console.warn('SpeechRecognition not supported; audio will still be recorded.')
+  } else {
+    startSTT()
+  }
+
+  const startedAt = Date.now()
+
+  session = {
+    stream,
+    audioCtx,
+    mediaRecorder,
+    chunks,
+    startedAt,
+    stop: () => new Promise((resolve) => {
+      sttStopped = true
+      if (levelRaf) cancelAnimationFrame(levelRaf)
+      try { recognition && recognition.stop() } catch {}
+      const finishMedia = () => {
+        const mime = mediaRecorder?.mimeType || 'audio/webm'
+        const audioBlob = chunks.length ? new Blob(chunks, { type: mime }) : null
+        const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null
+        const durationMs = Date.now() - startedAt
+        stream.getTracks().forEach(t => t.stop())
+        try { audioCtx.close() } catch {}
+        const result = {
+          transcript: finalTranscript.trim(),
+          audioBlob,
+          audioUrl,
+          durationMs,
+          maxVolume,
+        }
+        onEnd?.(result)
+        resolve(result)
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.onstop = finishMedia
+        try { mediaRecorder.stop() } catch { finishMedia() }
+      } else {
+        finishMedia()
+      }
+    }),
+  }
+
+  return session
 }
 
 export function stopRecording() {
-  if (recognition) {
-    try { recognition.stop() } catch {}
-    recognition = null
-  }
+  if (!session) return Promise.resolve(null)
+  const s = session
+  session = null
+  return s.stop()
 }
 
 export function isRecording() {
-  return recognition !== null
+  return session !== null
 }
 
 // ─── Check browser support ────────────────────────────────────────────────────
@@ -96,5 +201,7 @@ export function checkSupport() {
   return {
     tts: 'speechSynthesis' in window,
     stt: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+    mediaRecorder: typeof MediaRecorder !== 'undefined',
+    getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
   }
 }

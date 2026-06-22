@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react'
 import HomeScreen from './components/HomeScreen'
 import ApiKeySetup from './components/ApiKeySetup'
+import MicCheck from './components/MicCheck'
 import TestRunner from './components/TestRunner'
 import ResultsScreen from './components/ResultsScreen'
 import { buildFullTest, buildShortTest } from './data/index.js'
 
 export default function App() {
-  const [screen, setScreen] = useState('home') // 'home' | 'setup' | 'test' | 'results'
+  const [screen, setScreen] = useState('home') // 'home' | 'setup' | 'miccheck' | 'test' | 'results'
   const [testType, setTestType] = useState('full')
   const [apiKey, setApiKey] = useState(() => {
     const stored = localStorage.getItem('gemini_api_key')
@@ -19,28 +20,32 @@ export default function App() {
   const [answers, setAnswers] = useState({})
   const [results, setResults] = useState(null)
 
+  const buildAndStage = useCallback((type) => {
+    const qs = type === 'full' ? buildFullTest() : buildShortTest()
+    setQuestions(qs)
+    setAnswers({})
+    setResults(null)
+    setScreen('miccheck')
+  }, [])
+
   const handleStart = useCallback((type) => {
     setTestType(type)
     if (!apiKey) {
       setScreen('setup')
     } else {
-      const qs = type === 'full' ? buildFullTest() : buildShortTest()
-      setQuestions(qs)
-      setAnswers({})
-      setResults(null)
-      setScreen('test')
+      buildAndStage(type)
     }
-  }, [apiKey])
+  }, [apiKey, buildAndStage])
 
   const handleApiKeySaved = useCallback((key) => {
     setApiKey(key)
     localStorage.setItem('gemini_api_key', key)
-    const qs = testType === 'full' ? buildFullTest() : buildShortTest()
-    setQuestions(qs)
-    setAnswers({})
-    setResults(null)
+    buildAndStage(testType)
+  }, [testType, buildAndStage])
+
+  const handleMicCheckPassed = useCallback(() => {
     setScreen('test')
-  }, [testType])
+  }, [])
 
   const handleTestComplete = useCallback((collectedAnswers) => {
     setAnswers(collectedAnswers)
@@ -69,6 +74,9 @@ export default function App() {
       )}
       {screen === 'setup' && (
         <ApiKeySetup onSave={handleApiKeySaved} onBack={() => setScreen('home')} />
+      )}
+      {screen === 'miccheck' && (
+        <MicCheck onContinue={handleMicCheckPassed} onBack={() => setScreen('home')} />
       )}
       {screen === 'test' && (
         <TestRunner
