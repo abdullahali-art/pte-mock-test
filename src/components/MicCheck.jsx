@@ -46,6 +46,7 @@ export default function MicCheck({ onContinue, onBack }) {
       source.connect(analyser)
       const buf = new Uint8Array(analyser.frequencyBinCount)
       let peak = 0
+      let lastEmit = 0
       const tick = () => {
         analyser.getByteTimeDomainData(buf)
         let p = 0
@@ -53,8 +54,9 @@ export default function MicCheck({ onContinue, onBack }) {
           const v = Math.abs(buf[i] - 128) / 128
           if (v > p) p = v
         }
-        setLevel(p)
         if (p > peak) { peak = p; setPeakLevel(peak) }
+        const now = performance.now()
+        if (now - lastEmit >= 80) { lastEmit = now; setLevel(p) }
         rafRef.current = requestAnimationFrame(tick)
       }
       tick()

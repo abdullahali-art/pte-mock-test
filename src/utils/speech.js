@@ -68,6 +68,9 @@ export async function startRecording({ onInterim, onFinal, onEnd, onError, onLev
   const levelBuf = new Uint8Array(analyser.frequencyBinCount)
   let maxVolume = 0
   let levelRaf = null
+  // Throttle UI level updates to ~12 Hz so the parent isn't re-rendered on
+  // every animation frame — that flooded React and visibly slowed the timer.
+  let lastLevelEmit = 0
   const tick = () => {
     analyser.getByteTimeDomainData(levelBuf)
     let peak = 0
@@ -76,7 +79,11 @@ export async function startRecording({ onInterim, onFinal, onEnd, onError, onLev
       if (v > peak) peak = v
     }
     if (peak > maxVolume) maxVolume = peak
-    onLevel?.(peak)
+    const now = performance.now()
+    if (onLevel && now - lastLevelEmit >= 80) {
+      lastLevelEmit = now
+      onLevel(peak)
+    }
     levelRaf = requestAnimationFrame(tick)
   }
   tick()

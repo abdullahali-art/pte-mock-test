@@ -3,6 +3,10 @@ import { useEffect, useRef, useState } from 'react'
 export default function Timer({ seconds, onExpire, paused = false }) {
   const [remaining, setRemaining] = useState(seconds)
   const ref = useRef(null)
+  // Hold latest onExpire in a ref so re-renders that change the callback
+  // identity don't restart the interval and freeze the countdown.
+  const onExpireRef = useRef(onExpire)
+  useEffect(() => { onExpireRef.current = onExpire }, [onExpire])
 
   useEffect(() => { setRemaining(seconds) }, [seconds])
 
@@ -10,12 +14,12 @@ export default function Timer({ seconds, onExpire, paused = false }) {
     if (paused) { clearInterval(ref.current); return }
     ref.current = setInterval(() => {
       setRemaining(prev => {
-        if (prev <= 1) { clearInterval(ref.current); onExpire?.(); return 0 }
+        if (prev <= 1) { clearInterval(ref.current); onExpireRef.current?.(); return 0 }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(ref.current)
-  }, [paused, onExpire, seconds])
+  }, [paused, seconds])
 
   const mins = Math.floor(remaining / 60)
   const secs = remaining % 60
@@ -35,6 +39,8 @@ export default function Timer({ seconds, onExpire, paused = false }) {
 export function ItemTimerBar({ seconds, running, onExpire }) {
   const [remaining, setRemaining] = useState(seconds)
   const ref = useRef(null)
+  const onExpireRef = useRef(onExpire)
+  useEffect(() => { onExpireRef.current = onExpire }, [onExpire])
 
   useEffect(() => { setRemaining(seconds) }, [seconds])
 
@@ -42,12 +48,12 @@ export function ItemTimerBar({ seconds, running, onExpire }) {
     if (!running) { clearInterval(ref.current); return }
     ref.current = setInterval(() => {
       setRemaining(prev => {
-        if (prev <= 1) { clearInterval(ref.current); onExpire?.(); return 0 }
+        if (prev <= 1) { clearInterval(ref.current); onExpireRef.current?.(); return 0 }
         return prev - 1
       })
     }, 1000)
     return () => clearInterval(ref.current)
-  }, [running, onExpire, seconds])
+  }, [running, seconds])
 
   const pct = seconds > 0 ? (remaining / seconds) * 100 : 0
   const color = pct < 15 ? 'var(--danger)' : pct < 33 ? 'var(--warning)' : 'var(--primary)'
